@@ -52,6 +52,16 @@ Optional: `RIOT_NAME` / `RIOT_TAG` (they default to `Kokosfjes` / `kokos`), and 
 
 Save, then open the `*.azurestaticapps.net` URL to check that your stats load.
 
+## 4b. Keep every match (optional, recommended)
+
+Without this, the page only knows what HenrikDev returns: about 50 archived games, of which the last 10 carry lobby ranks. With it, the function saves every match it sees, so your history and the hidden MMR estimate keep improving as you play. It costs a few cents a month.
+
+1. Azure portal → **Create a resource → Storage account**. Use the same resource group, **Standard** performance and **LRS** redundancy. Any name works.
+2. Open the storage account → **Security + networking → Access keys** → copy **Connection string** (key1).
+3. Static Web App → **Environment variables** → add `STORAGE_CONNECTION_STRING` with that value and save.
+
+The function creates a table called `valorant` on first run. Matches are saved from then on. Earlier games only come back if HenrikDev's archive still has them.
+
 ## 5. Point your Namecheap subdomain at it
 
 1. Static Web App → **Custom domains → + Add → Custom domain on other DNS**. Enter for example `valorant.yourdomain.com`.
@@ -77,6 +87,11 @@ To run the real API locally, install the Azure Functions Core Tools and the SWA 
 
 ## Notes
 
-- **Sample size:** HenrikDev's match endpoint returns your last **10 competitive** games. The win rate, K/D, ACS, HS%, ADR, agents and maps are based on those. The RR chart uses your longer RR history.
-- **Rate limits:** the cache means HenrikDev gets at most 4 requests every 5 minutes, however many people open the page. If HenrikDev is down, the page shows the last saved stats and marks them as saved.
+- **Sample size:** the last 10 competitive games come with full detail, including the other players' ranks. HenrikDev's archive adds up to 50 more games with your own stats (`ARCHIVE_PAGES`, default `2` pages of 25, maximum `4`). With storage set up, everything is kept, up to the latest 200 games shown on the page.
+- **Hidden MMR estimate:** blends three signals in "division units" (Gold 3 at 62 RR = 14.62):
+  - **RR gains vs losses (35%):** average RR per win minus average RR per loss over the last 40 games. Every 8 RR of gap moves the estimate one division, capped at ±3.
+  - **Lobby rank (50%):** the average rank of the other players across your last 40 full matches.
+  - **Performance (15%):** your ACS divided by the lobby's ACS (or 215 for archived games). Every 20% above average adds one division, capped at ±2.
+  The weights are a best guess, not Riot's formula. Confidence goes up with the number of games behind each signal.
+- **Rate limits:** each refresh costs HenrikDev 4 requests plus 1–4 archive pages, at most once every 5 minutes however many people open the page. If HenrikDev is down, the page shows the last saved stats and marks them as saved.
 - Not affiliated with or endorsed by Riot Games.

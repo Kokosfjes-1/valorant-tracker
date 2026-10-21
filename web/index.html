@@ -60,6 +60,23 @@
       <div class="kpi chamfer form-kpi"><span class="label">Form</span><div class="form" id="k-form"></div><span class="ks" id="k-sample">–</span></div>
     </section>
 
+    <section class="panel chamfer mmr" aria-labelledby="mmr-title" id="mmr">
+      <div class="panel-head">
+        <h2 id="mmr-title">Hidden MMR <span class="est">estimate</span></h2>
+        <span class="conf" id="mmr-conf" data-level="low">–</span>
+      </div>
+      <div class="mmr-body">
+        <div class="mmr-main">
+          <span class="label">Plays like</span>
+          <div class="mmr-tier" id="mmr-tier">—</div>
+          <div class="mmr-diff" id="mmr-diff">Needs a few ranked games.</div>
+        </div>
+        <div class="ladder" id="ladder" aria-hidden="true"></div>
+      </div>
+      <ul class="signals" id="signals"></ul>
+      <p class="mmr-note">Riot doesn't publish hidden MMR. This is an estimate built from your RR gains and losses, the ranks of the players you're matched with, and how you perform against them. The weights are a best guess, not Riot's formula.</p>
+    </section>
+
     <section class="panel chamfer" aria-labelledby="rr-title">
       <div class="panel-head">
         <h2 id="rr-title">RR per game</h2>
@@ -70,7 +87,7 @@
 
     <div class="two">
       <section class="panel chamfer" aria-labelledby="agents-title">
-        <div class="panel-head"><h2 id="agents-title">Agents</h2><span class="meta">Last games</span></div>
+        <div class="panel-head"><h2 id="agents-title">Agents</h2><span class="meta games-meta">–</span></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Agent</th><th class="n">Games</th><th class="n">Win %</th><th class="n">K/D</th><th class="n">ACS</th></tr></thead>
@@ -79,7 +96,7 @@
         </div>
       </section>
       <section class="panel chamfer" aria-labelledby="maps-title">
-        <div class="panel-head"><h2 id="maps-title">Maps</h2><span class="meta">Last games</span></div>
+        <div class="panel-head"><h2 id="maps-title">Maps</h2><span class="meta games-meta">–</span></div>
         <div class="table-wrap">
           <table>
             <thead><tr><th>Map</th><th class="n">Games</th><th class="n">Record</th><th class="n">Win %</th><th class="n">ACS</th></tr></thead>
@@ -90,7 +107,7 @@
     </div>
 
     <section class="panel chamfer" aria-labelledby="matches-title">
-      <div class="panel-head"><h2 id="matches-title">Recent matches</h2><span class="meta">Competitive</span></div>
+      <div class="panel-head"><h2 id="matches-title">Recent matches</h2><span class="meta">Last 20 · Competitive</span></div>
       <ol class="matches" id="matches"></ol>
     </section>
   </main>

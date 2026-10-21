@@ -7,6 +7,7 @@
     "start": "func start"
   },
   "dependencies": {
-    "@azure/functions": "^4.5.0"
+    "@azure/functions": "^4.5.0",
+    "@azure/data-tables": "^13.2.2"
   }
 }

@@ -9,6 +9,22 @@
   };
   const tierColor = (tier) => TIER_COLORS[(tier || "").split(" ")[0].toLowerCase()] || "#8a9aa7";
 
+  // Competitive tier ids: 3 = Iron 1 … 26 = Immortal 3, 27 = Radiant.
+  const TIER_NAMES = ["Unranked", "", ""].concat(
+    ["Iron", "Bronze", "Silver", "Gold", "Platinum", "Diamond", "Ascendant", "Immortal"].flatMap((t) => [1, 2, 3].map((n) => `${t} ${n}`)),
+    ["Radiant"],
+  );
+  const clampTier = (id) => Math.max(3, Math.min(27, Math.floor(id)));
+  const tierName = (id) => TIER_NAMES[clampTier(id)];
+  const tierShort = (id) => {
+    const n = tierName(id);
+    if (n === "Radiant") return "RAD";
+    const [t, d] = n.split(" ");
+    return (t === "Immortal" ? "IM" : t[0]) + d;
+  };
+  const mean = (xs) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x));
+
   const el = (tag, cls, text) => {
     const n = document.createElement(tag);
     if (cls) n.className = cls;
@@ -72,6 +88,119 @@
       g.get(k).list.push(m);
     }
     return [...g.values()].map((x) => ({ ...x, s: summarize(x.list) })).sort((a, b) => b.s.n - a.s.n || b.s.winRate - a.s.winRate);
+  }
+
+  // ---------- hidden MMR estimate ----------
+  // Works in "division units": tier id + RR/100, so Gold 3 at 62 RR is 14.62.
+  const AVG_ACS = 215;
+  function estimateMmr(d, ms) {
+    const r = d.rank;
+    if (!r || !(r.tierId >= 3)) return null;
+    const cur = r.tierId + clamp(r.rr || 0, 0, 99) / 100;
+    const sigs = [];
+
+    const hist = (d.history || []).slice(-40);
+    const wins = hist.filter((h) => h.change > 0).map((h) => h.change);
+    const losses = hist.filter((h) => h.change < 0).map((h) => -h.change);
+    if (wins.length >= 2 && losses.length >= 2) {
+      const aw = mean(wins), al = mean(losses), gap = aw - al;
+      sigs.push({
+        name: "RR gains vs losses", weight: 0.35, n: wins.length + losses.length,
+        value: cur + clamp(gap / 8, -3, 3),
+        ev: `Wins +${Math.round(aw)} RR, losses −${Math.round(al)} RR over ${wins.length + losses.length} games. Gap ${signed(Math.round(gap))}.`,
+      });
+    } else sigs.push({ name: "RR gains vs losses", weight: 0.35, n: 0, ev: "Needs at least 2 wins and 2 losses in your RR history." });
+
+    const lob = ms.filter((m) => m.lobby && m.lobby.avgTier >= 3).slice(0, 40);
+    if (lob.length) {
+      const avgTier = mean(lob.map((m) => m.lobby.avgTier));
+      sigs.push({
+        name: "Lobby rank", weight: 0.5, n: lob.length,
+        value: avgTier + 0.5,
+        ev: `The other players in your last ${lob.length} game${lob.length === 1 ? "" : "s"} averaged ${tierName(avgTier)}.`,
+      });
+    } else sigs.push({ name: "Lobby rank", weight: 0.5, n: 0, ev: "Needs full match details, which arrive after your next game." });
+
+    const perf = ms.filter((m) => m.rounds > 0).slice(0, 60);
+    if (perf.length >= 3) {
+      const idx = mean(perf.map((m) => m.score / m.rounds / ((m.lobby && m.lobby.avgAcs) || AVG_ACS)));
+      const vs = perf.some((m) => m.lobby && m.lobby.avgAcs) ? "the lobby" : "an average player";
+      sigs.push({
+        name: "Performance", weight: 0.15, n: perf.length,
+        value: cur + clamp((idx - 1) * 5, -2, 2),
+        ev: `Your ACS is ${Math.abs(Math.round((idx - 1) * 100))}% ${idx >= 1 ? "above" : "below"} ${vs} across ${perf.length} games.`,
+      });
+    } else sigs.push({ name: "Performance", weight: 0.15, n: 0, ev: "Needs at least 3 games." });
+
+    const live = sigs.filter((s) => s.n);
+    if (!live.length) return { cur, est: null, sigs, conf: "low" };
+    const wsum = live.reduce((a, s) => a + s.weight, 0);
+    const est = clamp(live.reduce((a, s) => a + s.value * s.weight, 0) / wsum, 3, 27.99);
+    const score = (Math.min(lob.length, 20) / 20) * 0.5 + (Math.min(wins.length + losses.length, 30) / 30) * 0.35 + (Math.min(perf.length, 30) / 30) * 0.15;
+    return { cur, est, sigs, conf: score >= 0.7 && lob.length >= 15 ? "high" : score >= 0.4 ? "medium" : "low" };
+  }
+
+  function renderMmr(m) {
+    const box = $("mmr");
+    const conf = $("mmr-conf");
+    $("signals").replaceChildren();
+    $("ladder").replaceChildren();
+    if (!m || m.est == null) {
+      $("mmr-tier").textContent = "—";
+      $("mmr-diff").textContent = m ? "Needs a few more ranked games." : "Play your placements to get an estimate.";
+      conf.textContent = "No data";
+      conf.dataset.level = "low";
+      if (m) m.sigs.forEach(renderSignal);
+      return;
+    }
+    const name = tierName(m.est);
+    box.style.setProperty("--tier", tierColor(name));
+    const t = $("mmr-tier");
+    t.textContent = name;
+    t.appendChild(el("small", null, `~${Math.round((m.est % 1) * 100)}`));
+    const diff = Math.round((m.est - m.cur) * 100);
+    const dEl = $("mmr-diff");
+    dEl.replaceChildren();
+    if (Math.abs(diff) < 15) dEl.textContent = "Right around your current rank.";
+    else dEl.append("About ", el("b", diff > 0 ? "good" : "bad", `${Math.abs(diff)} RR ${diff > 0 ? "above" : "below"}`), " your current rank.");
+    conf.textContent = `${m.conf} confidence`;
+    conf.dataset.level = m.conf;
+    m.sigs.forEach(renderSignal);
+    renderLadder(m);
+  }
+
+  function renderSignal(s) {
+    const li = el("li", "signal chamfer" + (s.n ? "" : " off"));
+    const top = el("div", "signal-top");
+    top.append(el("strong", null, s.name), el("em", null, `${Math.round(s.weight * 100)}% weight`));
+    const v = el("div", "signal-val", s.n ? tierName(s.value) : "—");
+    if (s.n) v.style.color = tierColor(tierName(s.value));
+    li.append(top, v, el("div", "signal-ev", s.ev));
+    $("signals").appendChild(li);
+  }
+
+  function renderLadder(m) {
+    const vals = [m.cur, m.est, ...m.sigs.filter((s) => s.n).map((s) => s.value)];
+    let lo = Math.max(3, Math.floor(Math.min(...vals)) - 1);
+    let hi = Math.min(28, Math.floor(Math.max(...vals)) + 2);
+    while (hi - lo < 6) hi < 28 ? hi++ : lo--;
+    const span = hi - lo;
+    const cols = `repeat(${span}, minmax(0, 1fr))`;
+    const rungs = el("div", "rungs"), labels = el("div", "rung-labels");
+    rungs.style.gridTemplateColumns = labels.style.gridTemplateColumns = cols;
+    for (let id = lo; id < hi; id++) {
+      const i = el("i");
+      i.style.background = tierColor(tierName(id));
+      rungs.appendChild(i);
+      labels.appendChild(el("span", null, tierShort(id)));
+    }
+    const pin = (cls, v, text) => {
+      const p = el("div", "pin " + cls);
+      p.style.left = ((v - lo) / span) * 100 + "%";
+      p.append(el("span", null, text), el("i"));
+      return p;
+    };
+    $("ladder").append(rungs, labels, pin("est", m.est, "MMR"), pin("cur", m.cur, "Rank"));
   }
 
   // ---------- render ----------
@@ -242,6 +371,7 @@
         stat(int(m.score / Math.max(m.rounds, 1)), "ACS"),
         stat(pct(m.headshots / Math.max(m.shots, 1)), "HS%"),
         stat(int(m.damage / Math.max(m.rounds, 1)), "ADR"),
+        stat(m.lobby && m.lobby.avgTier >= 3 ? tierShort(m.lobby.avgTier) : "—", "Lobby"),
       );
       const change = rrById.get(m.id);
       const rr = el("div", "m-rr " + (change == null ? "none" : change > 0 ? "good" : change < 0 ? "bad" : ""), change == null ? "—" : signed(change));
@@ -252,14 +382,19 @@
 
   function render(d) {
     const ms = (d.matches || []).slice().sort((a, b) => b.startedAt - a.startedAt);
+    // Archived games carry no agent icon; borrow one from a full match with the same agent.
+    const icons = new Map(ms.filter((m) => m.agentIcon).map((m) => [m.agent, m.agentIcon]));
+    ms.forEach((m) => { if (!m.agentIcon && icons.has(m.agent)) m.agentIcon = icons.get(m.agent); });
     const hist = d.history || [];
     renderHeader(d);
     renderRank(d.rank);
     renderKpis(ms);
-    renderChart(hist);
+    renderMmr(estimateMmr(d, ms));
+    renderChart(hist.slice(-40));
     renderTable("agents", groupBy(ms, "agent"), "agent");
     renderTable("maps", groupBy(ms, "map"), "map");
-    renderMatches(ms, hist);
+    renderMatches(ms.slice(0, 20), hist);
+    document.querySelectorAll(".games-meta").forEach((n) => (n.textContent = `${ms.length} games`));
   }
 
   function notice(msg, kind) {

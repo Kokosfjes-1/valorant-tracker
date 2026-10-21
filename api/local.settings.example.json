@@ -6,6 +6,8 @@
     "RIOT_NAME": "Kokosfjes",
     "RIOT_TAG": "kokos",
     "RIOT_REGION": "eu",
-    "CACHE_SECONDS": "300"
+    "CACHE_SECONDS": "300",
+    "ARCHIVE_PAGES": "2",
+    "STORAGE_CONNECTION_STRING": ""
   }
 }
