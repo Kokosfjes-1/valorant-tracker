@@ -4,7 +4,7 @@ const store = require("../lib/store");
 // Only the accounts listed here (or in RIOT_ACCOUNTS) can be looked up; the request only picks one by id.
 const BASE = "https://api.henrikdev.xyz/valorant";
 const DEFAULT_REGION = (process.env.RIOT_REGION || "eu").toLowerCase();
-const ACCOUNTS = parseAccounts(process.env.RIOT_ACCOUNTS || "Kokosfjes#kokos, pasta#tspmo");
+const ACCOUNTS = parseAccounts(process.env.RIOT_ACCOUNTS || "Kokosfjes#kokos, pasta#tspmo, Alhagga#1234, Zacian#Spexy, Nino Enjoyer#199cm, Captainsmekk#opg");
 const TTL_MS = Math.max(60, Number(process.env.CACHE_SECONDS) || 300) * 1000;
 const ARCHIVE_PAGES = Math.min(4, Math.max(0, Number(process.env.ARCHIVE_PAGES ?? 2)));
 const MAX_MATCHES = 200;
