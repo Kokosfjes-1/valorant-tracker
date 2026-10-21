@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Player · Valorant Stats</title>
+  <meta name="description" content="Competitive Valorant stats: rank, hidden MMR estimate, agents, maps and recent matches.">
+  <meta name="theme-color" content="#0f1923">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 6l11 20h5L8 6z' fill='%23ff4655'/%3E%3Cpath d='M18 6h11L21 20h-5z' fill='%23ece8e1'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="hero">
+    <div class="banner" id="banner" aria-hidden="true"></div>
+    <div class="hero-inner wrap">
+      <div class="ident">
+        <a class="back" id="back" href="./">
+          <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4l-6 6 6 6"/></svg>
+          All players
+        </a>
+        <span class="eyebrow"><span id="region">EU</span> · Competitive</span>
+        <h1><span id="name">Loading</span><span class="tag" id="tag"></span></h1>
+        <div class="sub">
+          <span>Level <b id="level">–</b></span>
+          <span class="sep" aria-hidden="true"></span>
+          <span id="updated" class="updated">Loading stats…</span>
+          <button class="refresh" id="refresh" type="button" aria-label="Refresh stats">
+            <svg viewBox="0 0 20 20" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M16 10a6 6 0 1 1-1.8-4.3M16 3v4h-4"/></svg>
+            Refresh
+          </button>
+        </div>
+      </div>
+
+      <div class="rank chamfer" id="rank-card">
+        <div class="rank-icon" id="rank-icon"></div>
+        <div class="rank-body">
+          <span class="label">Current rank</span>
+          <div class="rank-tier" id="rank-tier">—</div>
+          <div class="rr">
+            <div class="rr-bar"><i id="rr-fill"></i></div>
+            <span class="rr-num"><b id="rr">–</b>/100 RR</span>
+          </div>
+          <div class="rank-foot">
+            <span>Last game <b id="last-change" class="delta">–</b></span>
+            <span>Peak <b id="peak">–</b></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="notice" id="notice" hidden></div>
+
+    <section class="kpis" aria-label="Summary">
+      <div class="kpi chamfer"><span class="label">Win rate</span><span class="kv" id="k-win">–</span><span class="ks" id="k-record">–</span></div>
+      <div class="kpi chamfer"><span class="label">K/D</span><span class="kv" id="k-kd">–</span><span class="ks" id="k-kda">–</span></div>
+      <div class="kpi chamfer"><span class="label">ACS</span><span class="kv" id="k-acs">–</span><span class="ks">Avg combat score</span></div>
+      <div class="kpi chamfer"><span class="label">Headshot</span><span class="kv" id="k-hs">–</span><span class="ks">Of shots that hit</span></div>
+      <div class="kpi chamfer"><span class="label">ADR</span><span class="kv" id="k-adr">–</span><span class="ks">Damage per round</span></div>
+      <div class="kpi chamfer form-kpi"><span class="label">Form</span><div class="form" id="k-form"></div><span class="ks" id="k-sample">–</span></div>
+    </section>
+
+    <section class="panel chamfer mmr" aria-labelledby="mmr-title" id="mmr">
+      <div class="panel-head">
+        <h2 id="mmr-title">Hidden MMR <span class="est">estimate</span></h2>
+        <span class="conf" id="mmr-conf" data-level="low">–</span>
+      </div>
+      <div class="mmr-body">
+        <div class="mmr-main">
+          <span class="label">Plays like</span>
+          <div class="mmr-tier" id="mmr-tier">—</div>
+          <div class="mmr-diff" id="mmr-diff">Needs a few ranked games.</div>
+        </div>
+        <div class="ladder" id="ladder" aria-hidden="true"></div>
+      </div>
+      <ul class="signals" id="signals"></ul>
+      <p class="mmr-note">Riot doesn't publish hidden MMR. This is an estimate built from your RR gains and losses, the ranks of the players you're matched with, and how you perform against them. The weights are a best guess, not Riot's formula.</p>
+    </section>
+
+    <section class="panel chamfer" aria-labelledby="rr-title">
+      <div class="panel-head">
+        <h2 id="rr-title">RR per game</h2>
+        <span class="meta" id="rr-net">–</span>
+      </div>
+      <div class="chart" id="rr-chart"></div>
+    </section>
+
+    <div class="two">
+      <section class="panel chamfer" aria-labelledby="agents-title">
+        <div class="panel-head"><h2 id="agents-title">Agents</h2><span class="meta games-meta">–</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Agent</th><th class="n">Games</th><th class="n">Win %</th><th class="n">K/D</th><th class="n">ACS</th></tr></thead>
+            <tbody id="agents"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="panel chamfer" aria-labelledby="maps-title">
+        <div class="panel-head"><h2 id="maps-title">Maps</h2><span class="meta games-meta">–</span></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Map</th><th class="n">Games</th><th class="n">Record</th><th class="n">Win %</th><th class="n">ACS</th></tr></thead>
+            <tbody id="maps"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <section class="panel chamfer" aria-labelledby="matches-title">
+      <div class="panel-head"><h2 id="matches-title">Recent matches</h2><span class="meta">Last 20 · Competitive</span></div>
+      <ol class="matches" id="matches"></ol>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    <p>Stats from the unofficial <a href="https://docs.henrikdev.xyz" rel="noopener">HenrikDev Valorant API</a>, refreshed every few minutes. This site isn't endorsed by Riot Games and doesn't reflect the views of Riot Games or anyone officially involved in producing or managing Valorant.</p>
+  </footer>
+
+  <script src="common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

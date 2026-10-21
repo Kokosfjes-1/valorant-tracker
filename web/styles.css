@@ -271,3 +271,69 @@ footer p { max-width: 80ch; margin: 0; }
   .panel-head { padding: 16px 16px 12px; }
   th, td { padding-left: 14px; padding-right: 14px; }
 }
+
+/* ---------- Player page: back link ---------- */
+.back {
+  display: inline-flex; align-items: center; gap: 6px; width: fit-content;
+  font: 600 12px/1 var(--f-label); letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); text-decoration: none; margin-bottom: 6px;
+}
+.back:hover { color: var(--accent); }
+
+/* ---------- Landing ---------- */
+.landing .hero-inner { padding-bottom: 48px; }
+.landing h1 { font-size: clamp(56px, 10vw, 128px); }
+.lede { margin: 6px 0 0; max-width: 52ch; color: var(--muted); font: 500 18px/1.45 var(--f-body); }
+.players { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 20px; }
+.pcard {
+  --tier: var(--muted);
+  --cut: 22px;
+  position: relative; display: grid; grid-template-rows: 150px auto;
+  background: var(--panel); color: var(--ink); text-decoration: none; overflow: hidden;
+  animation: rise-in .6s cubic-bezier(.2, .9, .2, 1) both;
+  transition: transform .25s cubic-bezier(.2, .9, .2, 1), background .2s;
+}
+.pcard::after { content: ""; position: absolute; inset: 0; border-top: 3px solid var(--tier); pointer-events: none; }
+.pcard:hover, .pcard:focus-visible { transform: translateY(-4px); background: var(--panel-2); color: var(--ink); }
+.pcard:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+@keyframes rise-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+.pcard-art {
+  background:
+    linear-gradient(0deg, var(--panel) 0%, rgba(21, 33, 44, .2) 70%),
+    linear-gradient(90deg, color-mix(in srgb, var(--tier) 22%, transparent), transparent 70%),
+    var(--card, repeating-linear-gradient(115deg, transparent 0 22px, rgba(255, 70, 85, .05) 22px 23px));
+  background-color: var(--panel-2);
+  background-size: cover; background-position: center 30%;
+  transition: transform .5s cubic-bezier(.2, .9, .2, 1);
+}
+.pcard:hover .pcard-art { transform: scale(1.04); }
+.pcard-body { position: relative; display: grid; gap: 18px; padding: 0 24px 22px; margin-top: -54px; }
+.pcard-id { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; min-width: 0; }
+.pcard-region { flex-basis: 100%; font: 700 12px/1 var(--f-label); letter-spacing: .2em; color: var(--accent); }
+.pcard-name { font: 900 clamp(44px, 6vw, 64px)/.9 var(--f-display); text-transform: uppercase; overflow-wrap: anywhere; }
+.pcard-tag { font: 600 20px/1 var(--f-label); color: var(--muted); }
+.pcard-rank { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 14px; align-items: center; }
+.pcard-icon { width: 64px; height: 64px; display: grid; place-items: center; }
+.pcard-icon img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 4px 14px color-mix(in srgb, var(--tier) 45%, transparent)); }
+.pcard-icon .ph { width: 38px; height: 38px; transform: rotate(45deg); border: 3px solid var(--tier); background: color-mix(in srgb, var(--tier) 16%, transparent); }
+.pcard-rtext { display: grid; gap: 8px; min-width: 0; }
+.pcard-tier { font: 800 30px/.95 var(--f-display); text-transform: uppercase; color: var(--tier); }
+.pcard .rr-bar i { background: var(--tier); }
+.pstats { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.pstat { padding: 12px 0 12px 14px; border-left: 1px solid var(--line); min-width: 0; }
+.pstat:first-child { border-left: 0; padding-left: 0; }
+.pstat dt { font: 600 11px/1 var(--f-label); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.pstat dd { margin: 6px 0 0; font: 800 24px/1 var(--f-display); font-variant-numeric: tabular-nums; text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 480px) {
+  .pstats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pstat:nth-child(3) { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); }
+  .pstat:nth-child(4) { border-top: 1px solid var(--line); }
+  .pcard-body { padding: 0 18px 18px; }
+}
+.pcard-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.pcard-when { font: 500 13px/1.3 var(--f-label); letter-spacing: .04em; color: var(--muted); }
+.pcard-go { display: inline-flex; align-items: center; gap: 8px; font: 700 14px/1 var(--f-label); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.pcard-go svg { transition: transform .2s; }
+.pcard:hover .pcard-go svg { transform: translateX(4px); }
+.pcard.loading .pcard-tier, .pcard.loading .pstat dd { color: transparent; background: linear-gradient(90deg, var(--panel-2), var(--line), var(--panel-2)); background-size: 200% 100%; animation: shimmer 1.2s infinite; width: fit-content; min-width: 60%; }
+.pcard.failed .pcard-tier { color: var(--loss); font-size: 22px; }

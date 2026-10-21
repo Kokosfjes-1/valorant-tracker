@@ -1,10 +1,12 @@
-# Valorant tracker — Kokosfjes#kokos
+# Valorant tracker — Kokosfjes#kokos & pasta#tspmo
 
-A public stats page for one Valorant account. It runs on Azure Static Web Apps (free plan) with your own subdomain.
+A public stats site for a fixed list of Valorant accounts, hosted on Azure Static Web Apps (free plan) with your own subdomain.
 
-- `web/` is the page: `index.html`, `styles.css` and `app.js`.
-- `api/` is an Azure Function at `/api/stats`. It calls the HenrikDev API with your key and caches the result for 5 minutes. The key never reaches the browser.
-- The Riot ID is fixed on the server, so the site can't be used to look up other players.
+- `web/index.html` is the landing page, with one card per player (rank, RR, level, win rate, K/D, MMR estimate).
+- `web/player.html?a=<id>` is a player's full dashboard. `<id>` is `name-tag` in lowercase, for example `pasta-tspmo`.
+- `web/common.js` holds code both pages share, such as the stat math and the MMR estimate.
+- `api/` holds two Azure Functions. `/api/accounts` lists the players, and `/api/stats?account=<id>` returns one player's stats. They call the HenrikDev API with your key and cache each player for 5 minutes, so the key never reaches the browser.
+- Only accounts in `RIOT_ACCOUNTS` can be looked up. Any other id gets a "not on this tracker" error.
 
 ## 1. Get a HenrikDev API key
 
@@ -48,7 +50,11 @@ Static Web App → **Settings → Environment variables** → add:
 | `HENRIK_API_KEY` | your key |
 | `RIOT_REGION` | `eu` *(change if your account is on `na`, `ap`, `kr`, `latam` or `br`)* |
 
-Optional: `RIOT_NAME` / `RIOT_TAG` (they default to `Kokosfjes` / `kokos`), and `CACHE_SECONDS` (default `300`, minimum `60`).
+Optional:
+- `RIOT_ACCOUNTS`: the players on the tracker, comma-separated as `Name#tag`, or `Name#tag@region` for a player on a different region. It defaults to `Kokosfjes#kokos, pasta#tspmo`. To add someone later, add them here. No code change is needed.
+- `CACHE_SECONDS`: how long stats are cached. Default `300`, minimum `60`.
+
+If you set `RIOT_NAME` or `RIOT_TAG` earlier, delete them. They're no longer used.
 
 Save, then open the `*.azurestaticapps.net` URL to check that your stats load.
 
@@ -81,7 +87,7 @@ Open `web/index.html` through any static server with `?demo` at the end of the a
 python3 -m http.server 5173 -d web
 ```
 
-Then visit http://localhost:5173/?demo.
+Then visit http://localhost:5173/?demo. Every player shows the same sample stats in demo mode.
 
 To run the real API locally, install the Azure Functions Core Tools and the SWA CLI. Copy `api/local.settings.example.json` to `api/local.settings.json`, add your key, then run `npx @azure/static-web-apps-cli start web --api-location api`.
 
@@ -93,5 +99,5 @@ To run the real API locally, install the Azure Functions Core Tools and the SWA 
   - **Lobby rank (50%):** the average rank of the other players across your last 40 full matches.
   - **Performance (15%):** your ACS divided by the lobby's ACS (or 215 for archived games). Every 20% above average adds one division, capped at ±2.
   The weights are a best guess, not Riot's formula. Confidence goes up with the number of games behind each signal.
-- **Rate limits:** each refresh costs HenrikDev 4 requests plus 1–4 archive pages, at most once every 5 minutes however many people open the page. If HenrikDev is down, the page shows the last saved stats and marks them as saved.
+- **Rate limits:** each player's refresh costs HenrikDev 4 requests plus 1–4 archive pages, at most once every 5 minutes per player however many people visit. Opening the landing page refreshes every player, so two players cost up to 16 requests per 5 minutes. The free key allows 30 a minute, so keep the list to about 6 players before raising `CACHE_SECONDS` or lowering `ARCHIVE_PAGES`. If HenrikDev is down, the page shows the last saved stats and marks them as saved.
 - Not affiliated with or endorsed by Riot Games.

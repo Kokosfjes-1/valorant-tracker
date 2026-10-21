@@ -1,0 +1,6 @@
+{
+  "accounts": [
+    { "id": "kokosfjes-kokos", "name": "Kokosfjes", "tag": "kokos", "region": "eu" },
+    { "id": "pasta-tspmo", "name": "pasta", "tag": "tspmo", "region": "eu" }
+  ]
+}

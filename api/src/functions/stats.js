@@ -1,20 +1,38 @@
 const { app } = require("@azure/functions");
 const store = require("../lib/store");
 
-// One account only: the Riot ID is fixed here (or in app settings), never taken from the request.
+// Only the accounts listed here (or in RIOT_ACCOUNTS) can be looked up; the request only picks one by id.
 const BASE = "https://api.henrikdev.xyz/valorant";
-const NAME = process.env.RIOT_NAME || "Kokosfjes";
-const TAG = process.env.RIOT_TAG || "kokos";
-const REGION = (process.env.RIOT_REGION || "eu").toLowerCase();
+const DEFAULT_REGION = (process.env.RIOT_REGION || "eu").toLowerCase();
+const ACCOUNTS = parseAccounts(process.env.RIOT_ACCOUNTS || "Kokosfjes#kokos, pasta#tspmo");
 const TTL_MS = Math.max(60, Number(process.env.CACHE_SECONDS) || 300) * 1000;
 const ARCHIVE_PAGES = Math.min(4, Math.max(0, Number(process.env.ARCHIVE_PAGES ?? 2)));
 const MAX_MATCHES = 200;
 
-const who = `${encodeURIComponent(NAME)}/${encodeURIComponent(TAG)}`;
-const ACCOUNT_KEY = `${NAME}.${TAG}`.toLowerCase();
+// "Name#tag" or "Name#tag@region", comma-separated.
+function parseAccounts(raw) {
+  return raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => {
+      const [riotId, region] = s.split("@");
+      const i = riotId.lastIndexOf("#");
+      const name = riotId.slice(0, i).trim();
+      const tag = riotId.slice(i + 1).trim();
+      return {
+        id: `${name}-${tag}`.toLowerCase().replace(/[^a-z0-9-]+/g, ""),
+        name,
+        tag,
+        region: (region || DEFAULT_REGION).trim().toLowerCase(),
+        who: `${encodeURIComponent(name)}/${encodeURIComponent(tag)}`,
+        key: `${name}.${tag}`.toLowerCase(),
+      };
+    })
+    .filter((a) => a.name && a.tag);
+}
 
-let cache = { at: 0, body: null };
-let inflight = null;
+const caches = new Map();
 
 class UpstreamError extends Error {
   constructor(status, message) {
@@ -32,14 +50,15 @@ async function henrik(path) {
   return json.data;
 }
 
-const sameName = (p) =>
-  (p.name || "").toLowerCase() === NAME.toLowerCase() && (p.tag || "").toLowerCase() === TAG.toLowerCase();
+const sameName = (acct) => (p) =>
+  (p.name || "").toLowerCase() === acct.name.toLowerCase() && (p.tag || "").toLowerCase() === acct.tag.toLowerCase();
 const avg = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 
 // Full match (v3): your stats plus the other nine players' ranks and ACS.
-function normalizeMatch(m, puuid) {
+function normalizeMatch(m, puuid, acct) {
   const players = (m.players && m.players.all_players) || [];
-  const me = players.find((p) => (puuid ? p.puuid === puuid : sameName(p))) || players.find(sameName);
+  const isMe = sameName(acct);
+  const me = players.find((p) => (puuid ? p.puuid === puuid : isMe(p))) || players.find(isMe);
   if (!me) return null;
 
   const meta = m.metadata || {};
@@ -138,25 +157,26 @@ function mergeById(...lists) {
   return [...out.values()];
 }
 
-async function archivePages() {
+async function archivePages(acct) {
   const pages = [];
   for (let page = 1; page <= ARCHIVE_PAGES; page++) {
-    const data = await henrik(`/v1/stored-matches/${REGION}/${who}?mode=competitive&page=${page}&size=25`);
+    const data = await henrik(`/v1/stored-matches/${acct.region}/${acct.who}?mode=competitive&page=${page}&size=25`);
     pages.push(...(data || []));
     if (!data || data.length < 25) break;
   }
   return pages;
 }
 
-async function load(log) {
+async function load(acct, log) {
+  const { region, who } = acct;
   const [account, mmr, history, matches, archive, savedMatches, savedHistory] = await Promise.allSettled([
     henrik(`/v1/account/${who}`),
-    henrik(`/v2/mmr/${REGION}/${who}`),
-    henrik(`/v1/mmr-history/${REGION}/${who}`),
-    henrik(`/v3/matches/${REGION}/${who}?mode=competitive&size=10`),
-    archivePages(),
-    store.readAll(`m.${ACCOUNT_KEY}`),
-    store.readAll(`rr.${ACCOUNT_KEY}`),
+    henrik(`/v2/mmr/${region}/${who}`),
+    henrik(`/v1/mmr-history/${region}/${who}`),
+    henrik(`/v3/matches/${region}/${who}?mode=competitive&size=10`),
+    archivePages(acct),
+    store.readAll(`m.${acct.key}`),
+    store.readAll(`rr.${acct.key}`),
   ]);
   const live = [account, mmr, history, matches];
   if (live.every((r) => r.status === "rejected")) throw account.reason;
@@ -167,7 +187,7 @@ async function load(log) {
   const cur = val(mmr) && val(mmr).current_data;
   const peak = val(mmr) && val(mmr).highest_rank;
 
-  const liveFull = (val(matches) || []).map((m) => normalizeMatch(m, acc && acc.puuid)).filter(Boolean);
+  const liveFull = (val(matches) || []).map((m) => normalizeMatch(m, acc && acc.puuid, acct)).filter(Boolean);
   const liveArchive = (val(archive) || []).map(normalizeStored).filter(Boolean);
   const liveHistory = (val(history) || []).map(normalizeHistory).filter((h) => h.id);
   const oldMatches = val(savedMatches) || [];
@@ -181,9 +201,9 @@ async function load(log) {
     const knownFull = new Set(oldMatches.filter((m) => m.full).map((m) => m.id));
     const knownAny = new Set(oldMatches.map((m) => m.id));
     try {
-      await store.saveNew(`m.${ACCOUNT_KEY}`, liveFull, (m) => m.id, knownFull);
-      await store.saveNew(`m.${ACCOUNT_KEY}`, liveArchive, (m) => m.id, new Set([...knownAny, ...liveFull.map((m) => m.id)]));
-      await store.saveNew(`rr.${ACCOUNT_KEY}`, liveHistory, (h) => h.id, new Set(oldHistory.map((h) => h.id)));
+      await store.saveNew(`m.${acct.key}`, liveFull, (m) => m.id, knownFull);
+      await store.saveNew(`m.${acct.key}`, liveArchive, (m) => m.id, new Set([...knownAny, ...liveFull.map((m) => m.id)]));
+      await store.saveNew(`rr.${acct.key}`, liveHistory, (h) => h.id, new Set(oldHistory.map((h) => h.id)));
     } catch (err) {
       log(err);
     }
@@ -191,11 +211,12 @@ async function load(log) {
 
   return {
     updatedAt: Date.now(),
-    region: REGION,
+    id: acct.id,
+    region,
     archive: store.enabled(),
     player: {
-      name: (acc && acc.name) || NAME,
-      tag: (acc && acc.tag) || TAG,
+      name: (acc && acc.name) || acct.name,
+      tag: (acc && acc.tag) || acct.tag,
       level: (acc && acc.account_level) ?? null,
       card: (acc && acc.card && acc.card.wide) || null,
     },
@@ -215,19 +236,26 @@ async function load(log) {
   };
 }
 
-async function getStats(log) {
-  if (cache.body && Date.now() - cache.at < TTL_MS) return cache.body;
-  if (!inflight) {
-    inflight = load(log)
+function cacheFor(acct) {
+  if (!caches.has(acct.id)) caches.set(acct.id, { at: 0, body: null, inflight: null });
+  return caches.get(acct.id);
+}
+
+async function getStats(acct, log) {
+  const c = cacheFor(acct);
+  if (c.body && Date.now() - c.at < TTL_MS) return c.body;
+  if (!c.inflight) {
+    c.inflight = load(acct, log)
       .then((body) => {
-        cache = { at: Date.now(), body };
+        c.at = Date.now();
+        c.body = body;
         return body;
       })
       .finally(() => {
-        inflight = null;
+        c.inflight = null;
       });
   }
-  return inflight;
+  return c.inflight;
 }
 
 const reply = (status, body, headers = {}) => ({
@@ -240,25 +268,36 @@ app.http("stats", {
   methods: ["GET"],
   authLevel: "anonymous",
   handler: async (request, context) => {
+    const wanted = (request.query.get("account") || "").toLowerCase();
+    const acct = wanted ? ACCOUNTS.find((a) => a.id === wanted) : ACCOUNTS[0];
+    if (!acct) return reply(404, { error: "That player isn't on this tracker." });
     if (!process.env.HENRIK_API_KEY) {
       return reply(500, { error: "The server has no HenrikDev API key yet. Add HENRIK_API_KEY to the Static Web App's environment variables." });
     }
     try {
-      const body = await getStats((e) => context.warn(e));
+      const body = await getStats(acct, (e) => context.warn(e));
       return reply(200, body, { "Cache-Control": "public, max-age=60" });
     } catch (err) {
       context.error(err);
-      if (cache.body) return reply(200, { ...cache.body, stale: true });
+      const c = cacheFor(acct);
+      if (c.body) return reply(200, { ...c.body, stale: true });
       const s = err.status;
       const error =
         s === 401 || s === 403
           ? "HenrikDev refused the API key. Check HENRIK_API_KEY in the app settings."
           : s === 404
-          ? `No Valorant account found for ${NAME}#${TAG} in region ${REGION.toUpperCase()}.`
+          ? `No Valorant account found for ${acct.name}#${acct.tag} in region ${acct.region.toUpperCase()}.`
           : s === 429
           ? "HenrikDev is rate-limiting requests. Try again in a minute."
           : "Couldn't reach HenrikDev right now. Try again shortly.";
       return reply(502, { error });
     }
   },
+});
+
+app.http("accounts", {
+  methods: ["GET"],
+  authLevel: "anonymous",
+  handler: async () =>
+    reply(200, { accounts: ACCOUNTS.map(({ id, name, tag, region }) => ({ id, name, tag, region })) }, { "Cache-Control": "public, max-age=300" }),
 });
