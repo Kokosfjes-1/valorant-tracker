@@ -1,4 +1,4 @@
-# Valorant tracker — Kokosfjes#koko
+# Valorant tracker — Kokosfjes#kokos
 
 A public stats page for one Valorant account. It runs on Azure Static Web Apps (free plan) with your own subdomain.
 
@@ -48,7 +48,7 @@ Static Web App → **Settings → Environment variables** → add:
 | `HENRIK_API_KEY` | your key |
 | `RIOT_REGION` | `eu` *(change if your account is on `na`, `ap`, `kr`, `latam` or `br`)* |
 
-Optional: `RIOT_NAME` / `RIOT_TAG` (they default to `Kokosfjes` / `koko`), and `CACHE_SECONDS` (default `300`, minimum `60`).
+Optional: `RIOT_NAME` / `RIOT_TAG` (they default to `Kokosfjes` / `kokos`), and `CACHE_SECONDS` (default `300`, minimum `60`).
 
 Save, then open the `*.azurestaticapps.net` URL to check that your stats load.
 

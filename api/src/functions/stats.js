@@ -3,7 +3,7 @@ const { app } = require("@azure/functions");
 // One account only: the Riot ID is fixed here (or in app settings), never taken from the request.
 const BASE = "https://api.henrikdev.xyz/valorant";
 const NAME = process.env.RIOT_NAME || "Kokosfjes";
-const TAG = process.env.RIOT_TAG || "koko";
+const TAG = process.env.RIOT_TAG || "kokos";
 const REGION = (process.env.RIOT_REGION || "eu").toLowerCase();
 const TTL_MS = Math.max(60, Number(process.env.CACHE_SECONDS) || 300) * 1000;
 

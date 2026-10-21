@@ -4,7 +4,7 @@
     "FUNCTIONS_WORKER_RUNTIME": "node",
     "HENRIK_API_KEY": "paste-your-key-here",
     "RIOT_NAME": "Kokosfjes",
-    "RIOT_TAG": "koko",
+    "RIOT_TAG": "kokos",
     "RIOT_REGION": "eu",
     "CACHE_SECONDS": "300"
   }
