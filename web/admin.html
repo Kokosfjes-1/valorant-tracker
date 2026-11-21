@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Tracker Admin</title>
+  <meta name="theme-color" content="#0f1923">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M3 6l11 20h5L8 6z' fill='%23ff4655'/%3E%3Cpath d='M18 6h11L21 20h-5z' fill='%23ece8e1'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;800;900&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body class="admin">
+  <header class="hero">
+    <div class="banner" aria-hidden="true"></div>
+    <div class="hero-inner wrap">
+      <div class="ident">
+        <a class="back" href="./">← All players</a>
+        <span class="eyebrow">Admin</span>
+        <h1>Players</h1>
+        <p class="lede">Add or remove players and refresh their stats. Stats are cached and refreshed automatically at least every 3 hours.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="notice" id="notice" role="status" hidden></div>
+
+    <section class="panel chamfer" id="login-panel">
+      <div class="panel-head"><h2>Sign in</h2></div>
+      <form class="admin-form" id="login">
+        <label class="field">
+          <span class="label">Admin key</span>
+          <input id="key" type="password" autocomplete="current-password" required minlength="12">
+        </label>
+        <button class="btn" type="submit">Sign in</button>
+      </form>
+    </section>
+
+    <div id="app" hidden>
+      <section class="panel chamfer">
+        <div class="panel-head"><h2>Add a player</h2><span class="meta" id="storage-note"></span></div>
+        <form class="admin-form" id="add">
+          <label class="field grow">
+            <span class="label">Riot ID</span>
+            <input id="riot-id" placeholder="Name#tag" required autocomplete="off" spellcheck="false" maxlength="22">
+          </label>
+          <label class="field">
+            <span class="label">Region</span>
+            <select id="region"></select>
+          </label>
+          <button class="btn" type="submit">Add player</button>
+        </form>
+      </section>
+
+      <section class="panel chamfer">
+        <div class="panel-head">
+          <h2>On the tracker</h2>
+          <div class="head-actions">
+            <button class="btn ghost" type="button" id="refresh-all">Refresh all</button>
+            <button class="btn ghost" type="button" id="logout">Sign out</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr><th>Player</th><th>Rank</th><th>Last 10 games</th><th>Updated</th><th class="n">Actions</th></tr>
+            </thead>
+            <tbody id="rows"><tr><td class="empty" colspan="5">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="common.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

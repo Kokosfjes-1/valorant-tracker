@@ -1,0 +1,63 @@
+name: Refresh player stats
+
+# Pulls fresh stats from HenrikDev into the tracker's cache. Runs every 2 hours: GitHub can start scheduled
+# runs late, and 2 hours keeps every player under the 3-hour mark. A player whose refresh comes back
+# incomplete (fewer than their last 10 full games, or a failed part) is retried until it's complete
+# or MAX_ATTEMPTS is reached; the next scheduled run picks up anything still missing.
+on:
+  schedule:
+    - cron: "23 */2 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: refresh-stats
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    env:
+      TRACKER_URL: ${{ vars.TRACKER_URL }}
+      ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
+      MAX_ATTEMPTS: "8"
+    steps:
+      - name: Refresh every player
+        run: |
+          set -u
+          if [ -z "$TRACKER_URL" ] || [ -z "$ADMIN_KEY" ]; then
+            echo "::error::Set the TRACKER_URL repository variable and the ADMIN_KEY secret."
+            exit 1
+          fi
+          base="${TRACKER_URL%/}"
+          ids=$(curl -fsS --retry 3 "$base/api/accounts" | jq -r '.accounts[].id')
+          [ -n "$ids" ] || { echo "No players on the tracker."; exit 0; }
+
+          failed=0
+          for id in $ids; do
+            attempt=1
+            while :; do
+              body=$(curl -sS --max-time 60 -X POST -H "x-admin-key: $ADMIN_KEY" \
+                -w '\n%{http_code}' "$base/api/refresh?account=$id") || body=$'{}\n000'
+              code=$(printf '%s' "$body" | tail -n1)
+              json=$(printf '%s' "$body" | sed '$d')
+              complete=$(printf '%s' "$json" | jq -r '.complete // false' 2>/dev/null || echo false)
+              limited=$(printf '%s' "$json" | jq -r '.rateLimited // false' 2>/dev/null || echo false)
+              summary=$(printf '%s' "$json" | jq -c '{fullMatches, expected, missing, error}' 2>/dev/null || echo "$json")
+              echo "$id attempt $attempt: HTTP $code complete=$complete $summary"
+
+              if [ "$code" = "401" ] || [ "$code" = "503" ]; then
+                echo "::error::The tracker refused the admin key (HTTP $code)."; exit 1
+              fi
+              [ "$complete" = "true" ] && break
+              if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
+                echo "::warning::$id still incomplete after $MAX_ATTEMPTS attempts; the next run will try again."
+                failed=$((failed + 1)); break
+              fi
+              # Back off longer when HenrikDev is rate-limiting (the free key allows 30 requests a minute).
+              if [ "$limited" = "true" ] || [ "$code" = "429" ]; then sleep 75; else sleep $((20 * attempt)); fi
+              attempt=$((attempt + 1))
+            done
+            sleep 15
+          done
+          echo "Done. $failed player(s) still incomplete."

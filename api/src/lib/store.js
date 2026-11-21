@@ -1,9 +1,14 @@
 const { TableClient } = require("@azure/data-tables");
 
-// Optional match archive in Azure Table Storage. Without STORAGE_CONNECTION_STRING every call is a no-op,
-// so the tracker still works, just without history beyond what HenrikDev returns.
+// Azure Table Storage: match archive, cached stats snapshots and the admin-managed player list.
+// Without STORAGE_CONNECTION_STRING every call is a no-op, so the tracker still works with env-only accounts
+// and an in-memory cache.
 const TABLE = process.env.STORAGE_TABLE || "valorant";
 const MAX_ROWS = 1000;
+// A string property holds at most 64 KiB (32K UTF-16 chars) and an entity at most 1 MiB,
+// so big documents are split over several properties.
+const CHUNK = 30000;
+const MAX_CHUNKS = 15;
 
 let clientPromise = null;
 
@@ -57,4 +62,84 @@ async function saveNew(partition, items, idOf, known) {
   return fresh.length;
 }
 
-module.exports = { enabled: () => !!process.env.STORAGE_CONNECTION_STRING, readAll, saveNew };
+// One JSON document per row, chunked so it can exceed the 64 KiB property limit.
+async function getDoc(partition, row) {
+  const c = await client();
+  if (!c) return null;
+  try {
+    const e = await c.getEntity(key(partition), key(row));
+    const n = Number(e.chunks) || 0;
+    let json = "";
+    for (let i = 0; i < n; i++) json += e["d" + i] || "";
+    return JSON.parse(json);
+  } catch (err) {
+    if (err.statusCode === 404) return null;
+    throw err;
+  }
+}
+
+async function putDoc(partition, row, value) {
+  const c = await client();
+  if (!c) return false;
+  const json = JSON.stringify(value);
+  const n = Math.ceil(json.length / CHUNK);
+  if (n > MAX_CHUNKS) throw new Error(`Document ${partition}/${row} is too large to store (${json.length} chars).`);
+  const entity = { partitionKey: key(partition), rowKey: key(row), chunks: n };
+  for (let i = 0; i < n; i++) entity["d" + i] = json.slice(i * CHUNK, (i + 1) * CHUNK);
+  await c.upsertEntity(entity, "Replace");
+  return true;
+}
+
+async function remove(partition, row) {
+  const c = await client();
+  if (!c) return false;
+  try {
+    await c.deleteEntity(key(partition), key(row));
+    return true;
+  } catch (err) {
+    if (err.statusCode === 404) return false;
+    throw err;
+  }
+}
+
+async function removeRows(partition, rowIds) {
+  const c = await client();
+  if (!c || !rowIds.length) return 0;
+  const rows = [...new Set(rowIds.map(key))];
+  for (let i = 0; i < rows.length; i += 100) {
+    await c.submitTransaction(rows.slice(i, i + 100).map((r) => ["delete", { partitionKey: key(partition), rowKey: r }]));
+  }
+  return rows.length;
+}
+
+async function removePartition(partition) {
+  const c = await client();
+  if (!c) return 0;
+  const filter = `PartitionKey eq '${key(partition).replace(/'/g, "''")}'`;
+  const rows = [];
+  for await (const e of c.listEntities({ queryOptions: { filter, select: ["RowKey"] } })) rows.push(e.rowKey);
+  for (let i = 0; i < rows.length; i += 100) {
+    await c.submitTransaction(rows.slice(i, i + 100).map((r) => ["delete", { partitionKey: key(partition), rowKey: r }]));
+  }
+  return rows.length;
+}
+
+// Plain-row helpers for small records (the player list).
+async function putRow(partition, row, value) {
+  const c = await client();
+  if (!c) return false;
+  await c.upsertEntity({ partitionKey: key(partition), rowKey: key(row), data: JSON.stringify(value) }, "Replace");
+  return true;
+}
+
+module.exports = {
+  enabled: () => !!process.env.STORAGE_CONNECTION_STRING,
+  readAll,
+  saveNew,
+  getDoc,
+  putDoc,
+  putRow,
+  remove,
+  removeRows,
+  removePartition,
+};

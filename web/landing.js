@@ -110,7 +110,7 @@
     try {
       const accounts = await fetchAccounts();
       $("players").replaceChildren(...accounts.map(card));
-      if (!accounts.length) notice("No players are set up yet. Add them to RIOT_ACCOUNTS in the app settings.");
+      if (!accounts.length) notice("No players are set up yet. Add them at /admin.");
       else if (DEMO) notice("You're viewing sample data. Remove ?demo from the address to see live stats.", "info");
     } catch (err) {
       notice(err.message || "The player list couldn't load. Try again in a minute.");

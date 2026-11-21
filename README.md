@@ -5,8 +5,9 @@ A public stats site for a fixed list of Valorant accounts, hosted on Azure Stati
 - `web/index.html` is the landing page, with one card per player (rank, RR, level, win rate, K/D, MMR estimate).
 - `web/player.html?a=<id>` is a player's full dashboard. `<id>` is `name-tag` in lowercase, for example `pasta-tspmo`.
 - `web/common.js` holds code both pages share, such as the stat math and the MMR estimate.
-- `api/` holds two Azure Functions. `/api/accounts` lists the players, and `/api/stats?account=<id>` returns one player's stats. They call the HenrikDev API with your key and cache each player for 5 minutes, so the key never reaches the browser.
-- Only accounts in `RIOT_ACCOUNTS` can be looked up. Any other id gets a "not on this tracker" error.
+- `web/admin.html` (served at `/admin`) is the admin panel: add or remove players, see whether each player's last 10 games came through, and refresh on demand.
+- `api/` holds the Azure Functions. `/api/accounts` lists the players, `/api/stats?account=<id>` returns one player's stats from the cache, `/api/manage/accounts` is the admin API and `/api/refresh?account=<id>` pulls fresh stats. The HenrikDev key never reaches the browser.
+- Only players on the tracker can be looked up. Any other id gets a "not on this tracker" error.
 
 ## 1. Get a HenrikDev API key
 
@@ -51,8 +52,9 @@ Static Web App → **Settings → Environment variables** → add:
 | `RIOT_REGION` | `eu` *(change if your account is on `na`, `ap`, `kr`, `latam` or `br`)* |
 
 Optional:
-- `RIOT_ACCOUNTS`: the players on the tracker, comma-separated as `Name#tag`, or `Name#tag@region` for a player on a different region. It defaults to `Kokosfjes#kokos, pasta#tspmo`. To add someone later, add them here. No code change is needed.
-- `CACHE_SECONDS`: how long stats are cached. Default `300`, minimum `60`.
+- `RIOT_ACCOUNTS`: the starting player list, comma-separated as `Name#tag` or `Name#tag@region`. With storage (step 4b) it only seeds the list the first time; after that, manage players at `/admin`. Without storage it is the whole list.
+- `CACHE_SECONDS`: how long a cached snapshot is served before a visit triggers a fetch. Default `10800` (3 hours), minimum `60`.
+- `ADMIN_KEY`: the password for `/admin` and `/api/refresh`, at least 12 characters. Without it the admin panel is off. Generate one with `openssl rand -base64 24`.
 
 If you set `RIOT_NAME` or `RIOT_TAG` earlier, delete them. They're no longer used.
 
@@ -60,13 +62,26 @@ Save, then open the `*.azurestaticapps.net` URL to check that your stats load.
 
 ## 4b. Keep every match (optional, recommended)
 
-Without this, the page only knows what HenrikDev returns: about 50 archived games, of which the last 10 carry lobby ranks. With it, the function saves every match it sees, so your history and the hidden MMR estimate keep improving as you play. It costs a few cents a month.
+Without this, the page only knows what HenrikDev returns: the latest 30 games from its archive, of which the last 10 carry lobby ranks. With it, the function keeps each player's latest 30 games, upgrading archive-only games to full detail as they arrive, and deletes older ones as new games come in. It costs a few cents a month.
 
 1. Azure portal → **Create a resource → Storage account**. Use the same resource group, **Standard** performance and **LRS** redundancy. Any name works.
 2. Open the storage account → **Security + networking → Access keys** → copy **Connection string** (key1).
 3. Static Web App → **Environment variables** → add `STORAGE_CONNECTION_STRING` with that value and save.
 
 The function creates a table called `valorant` on first run. Matches are saved from then on. Earlier games only come back if HenrikDev's archive still has them.
+
+## 4c. Admin panel and automatic refresh
+
+1. Set `ADMIN_KEY` (step 4) and `STORAGE_CONNECTION_STRING` (step 4b). Storage is required to add or remove players, and it holds the cache so it survives cold starts.
+2. Open `https://<your site>/admin` and sign in with the key.
+3. In GitHub, go to **Settings → Secrets and variables → Actions**:
+   - **Secrets**: add `ADMIN_KEY` with the same value.
+   - **Variables**: add `TRACKER_URL` with your site's address, for example `https://valorant.yourdomain.com`.
+
+   Or use the CLI: `gh secret set ADMIN_KEY` and `gh variable set TRACKER_URL --body https://...`.
+4. The workflow `.github/workflows/refresh-stats.yml` runs every 2 hours, because GitHub sometimes starts scheduled runs late, and 2 hours keeps every player under 3. You can also start it from the **Actions** tab. For each player it calls `/api/refresh`. If HenrikDev returns fewer than the player's last 10 full games, or a part of the answer fails, the function retries inside the call, and the workflow keeps calling until the refresh is complete. It tries up to 8 times per player, waits longer when rate-limited, and leaves anything still missing for the next run.
+
+Static Web Apps' built-in functions can't run on a timer, which is why the schedule lives in GitHub Actions.
 
 ## 5. Point your Namecheap subdomain at it
 
@@ -93,11 +108,11 @@ To run the real API locally, install the Azure Functions Core Tools and the SWA 
 
 ## Notes
 
-- **Sample size:** the last 10 competitive games come with full detail, including the other players' ranks. HenrikDev's archive adds up to 50 more games with your own stats (`ARCHIVE_PAGES`, default `2` pages of 25, maximum `4`). With storage set up, everything is kept, up to the latest 200 games shown on the page.
+- **Sample size:** each player keeps their latest 30 competitive games, plus RR history for the latest 30. The last 10 come with full detail, including the other players' ranks. The rest come from HenrikDev's archive with only the player's own stats.
 - **Hidden MMR estimate:** blends three signals in "division units" (Gold 3 at 62 RR = 14.62):
-  - **RR gains vs losses (35%):** average RR per win minus average RR per loss over the last 40 games. Every 8 RR of gap moves the estimate one division, capped at ±3.
-  - **Lobby rank (50%):** the average rank of the other players across your last 40 full matches.
+  - **RR gains vs losses (35%):** average RR per win minus average RR per loss over the last 30 games. Every 8 RR of gap moves the estimate one division, capped at ±3.
+  - **Lobby rank (50%):** the average rank of the other players across your full matches among the last 30.
   - **Performance (15%):** your ACS divided by the lobby's ACS (or 215 for archived games). Every 20% above average adds one division, capped at ±2.
   The weights are a best guess, not Riot's formula. Confidence goes up with the number of games behind each signal.
-- **Rate limits:** each player's refresh costs HenrikDev 4 requests plus 1–4 archive pages, at most once every 5 minutes per player however many people visit. Opening the landing page refreshes every player, so two players cost up to 16 requests per 5 minutes. The free key allows 30 a minute, so keep the list to about 6 players before raising `CACHE_SECONDS` or lowering `ARCHIVE_PAGES`. If HenrikDev is down, the page shows the last saved stats and marks them as saved.
+- **Rate limits:** a refresh costs HenrikDev 5–6 requests per player, plus 1 more for each retry of the last 10 games. Visitors are served from the cache, so traffic doesn't add requests. The scheduled job waits between players to stay under the free key's 30 a minute. If HenrikDev is down, the page shows the last saved stats and marks them as saved.
 - Not affiliated with or endorsed by Riot Games.
