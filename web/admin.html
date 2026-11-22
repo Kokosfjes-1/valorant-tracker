@@ -28,18 +28,7 @@
   <main class="wrap">
     <div class="notice" id="notice" role="status" hidden></div>
 
-    <section class="panel chamfer" id="login-panel">
-      <div class="panel-head"><h2>Sign in</h2></div>
-      <form class="admin-form" id="login">
-        <label class="field">
-          <span class="label">Admin key</span>
-          <input id="key" type="password" autocomplete="current-password" required minlength="12">
-        </label>
-        <button class="btn" type="submit">Sign in</button>
-      </form>
-    </section>
-
-    <div id="app" hidden>
+    <div id="app">
       <section class="panel chamfer">
         <div class="panel-head"><h2>Add a player</h2><span class="meta" id="storage-note"></span></div>
         <form class="admin-form" id="add">
@@ -59,9 +48,7 @@
         <div class="panel-head">
           <h2>On the tracker</h2>
           <div class="head-actions">
-            <button class="btn ghost" type="button" id="refresh-all">Refresh all</button>
-            <button class="btn ghost" type="button" id="logout">Sign out</button>
-          </div>
+            <button class="btn ghost" type="button" id="refresh-all">Refresh all</button>          </div>
         </div>
         <div class="table-wrap">
           <table class="admin-table">

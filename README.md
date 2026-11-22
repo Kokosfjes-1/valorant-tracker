@@ -54,7 +54,6 @@ Static Web App → **Settings → Environment variables** → add:
 Optional:
 - `RIOT_ACCOUNTS`: the starting player list, comma-separated as `Name#tag` or `Name#tag@region`. With storage (step 4b) it only seeds the list the first time; after that, manage players at `/admin`. Without storage it is the whole list.
 - `CACHE_SECONDS`: how long a cached snapshot is served before a visit triggers a fetch. Default `10800` (3 hours), minimum `60`.
-- `ADMIN_KEY`: the password for `/admin` and `/api/refresh`, at least 12 characters. Without it the admin panel is off. Generate one with `openssl rand -base64 24`.
 
 If you set `RIOT_NAME` or `RIOT_TAG` earlier, delete them. They're no longer used.
 
@@ -72,13 +71,11 @@ The function creates a table called `valorant` on first run. Matches are saved f
 
 ## 4c. Admin panel and automatic refresh
 
-1. Set `ADMIN_KEY` (step 4) and `STORAGE_CONNECTION_STRING` (step 4b). Storage is required to add or remove players, and it holds the cache so it survives cold starts.
-2. Open `https://<your site>/admin` and sign in with the key.
-3. In GitHub, go to **Settings → Secrets and variables → Actions**:
-   - **Secrets**: add `ADMIN_KEY` with the same value.
-   - **Variables**: add `TRACKER_URL` with your site's address, for example `https://valorant.yourdomain.com`.
+1. Set `STORAGE_CONNECTION_STRING` (step 4b). Storage is required to add or remove players, and it holds the cache so it survives cold starts.
+2. Open `https://<your site>/admin`. There is no password: anyone with the URL can add, remove or refresh players.
+3. In GitHub, go to **Settings → Secrets and variables → Actions → Variables** and add `TRACKER_URL` with your site's address, for example `https://valorant.yourdomain.com`.
 
-   Or use the CLI: `gh secret set ADMIN_KEY` and `gh variable set TRACKER_URL --body https://...`.
+   Or use the CLI: `gh variable set TRACKER_URL --body https://...`.
 4. The workflow `.github/workflows/refresh-stats.yml` runs every 2 hours, because GitHub sometimes starts scheduled runs late, and 2 hours keeps every player under 3. You can also start it from the **Actions** tab. For each player it calls `/api/refresh`. If HenrikDev returns fewer than the player's last 10 full games, or a part of the answer fails, the function retries inside the call, and the workflow keeps calling until the refresh is complete. It tries up to 8 times per player, waits longer when rate-limited, and leaves anything still missing for the next run.
 
 Static Web Apps' built-in functions can't run on a timer, which is why the schedule lives in GitHub Actions.

@@ -1,11 +1,6 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const { el, ago } = window.VT;
-  const KEY_STORE = "vt-admin-key";
-  let key = "";
-  try {
-    key = sessionStorage.getItem(KEY_STORE) || "";
-  } catch (_) {}
 
   function notice(msg, kind) {
     const n = $("notice");
@@ -17,22 +12,11 @@
   async function api(path, opts = {}) {
     const res = await fetch(path, {
       ...opts,
-      headers: { Accept: "application/json", "Content-Type": "application/json", "x-admin-key": key, ...(opts.headers || {}) },
+      headers: { Accept: "application/json", "Content-Type": "application/json", ...(opts.headers || {}) },
     });
     const body = await res.json().catch(() => ({}));
-    if (res.status === 401) signOut("That admin key is wrong.");
     if (!res.ok && !(path.startsWith("/api/refresh") && body.id)) throw new Error(body.error || `The server answered ${res.status}.`);
     return body;
-  }
-
-  function signOut(msg) {
-    key = "";
-    try {
-      sessionStorage.removeItem(KEY_STORE);
-    } catch (_) {}
-    $("app").hidden = true;
-    $("login-panel").hidden = false;
-    notice(msg || "", msg ? "" : null);
   }
 
   function gamesCell(s) {
@@ -178,27 +162,11 @@
     }
   });
 
-  $("logout").addEventListener("click", () => signOut());
-
-  $("login").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    key = $("key").value.trim();
-    await start();
-  });
-
   async function start() {
-    if (!key) return;
     try {
       await loadList();
-      try {
-        sessionStorage.setItem(KEY_STORE, key);
-      } catch (_) {}
-      $("key").value = "";
-      $("login-panel").hidden = true;
-      $("app").hidden = false;
-      if ($("notice").textContent === "That admin key is wrong.") notice("");
     } catch (err) {
-      if (key) notice(err.message);
+      notice(err.message);
     }
   }
 

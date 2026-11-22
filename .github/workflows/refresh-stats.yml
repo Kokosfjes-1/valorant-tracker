@@ -19,14 +19,13 @@ jobs:
     timeout-minutes: 50
     env:
       TRACKER_URL: ${{ vars.TRACKER_URL }}
-      ADMIN_KEY: ${{ secrets.ADMIN_KEY }}
       MAX_ATTEMPTS: "8"
     steps:
       - name: Refresh every player
         run: |
           set -u
-          if [ -z "$TRACKER_URL" ] || [ -z "$ADMIN_KEY" ]; then
-            echo "::error::Set the TRACKER_URL repository variable and the ADMIN_KEY secret."
+          if [ -z "$TRACKER_URL" ]; then
+            echo "::error::Set the TRACKER_URL repository variable."
             exit 1
           fi
           base="${TRACKER_URL%/}"
@@ -37,7 +36,7 @@ jobs:
           for id in $ids; do
             attempt=1
             while :; do
-              body=$(curl -sS --max-time 60 -X POST -H "x-admin-key: $ADMIN_KEY" \
+              body=$(curl -sS --max-time 60 -X POST \
                 -w '\n%{http_code}' "$base/api/refresh?account=$id") || body=$'{}\n000'
               code=$(printf '%s' "$body" | tail -n1)
               json=$(printf '%s' "$body" | sed '$d')
@@ -46,9 +45,6 @@ jobs:
               summary=$(printf '%s' "$json" | jq -c '{fullMatches, expected, missing, error}' 2>/dev/null || echo "$json")
               echo "$id attempt $attempt: HTTP $code complete=$complete $summary"
 
-              if [ "$code" = "401" ] || [ "$code" = "503" ]; then
-                echo "::error::The tracker refused the admin key (HTTP $code)."; exit 1
-              fi
               [ "$complete" = "true" ] && break
               if [ "$attempt" -ge "$MAX_ATTEMPTS" ]; then
                 echo "::warning::$id still incomplete after $MAX_ATTEMPTS attempts; the next run will try again."

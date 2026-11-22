@@ -350,7 +350,6 @@ footer p { max-width: 80ch; margin: 0; }
   font: 500 16px/1 var(--f-body);
 }
 .field input:focus, .field select:focus { outline: none; border-color: var(--accent); }
-#login .field { flex: 1 1 260px; }
 .btn {
   height: 42px; padding: 0 18px; border: 1px solid var(--accent); background: var(--accent); color: var(--bg);
   font: 700 13px/1 var(--f-label); letter-spacing: .14em; text-transform: uppercase; cursor: pointer;

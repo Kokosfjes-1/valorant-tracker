@@ -1,23 +1,11 @@
-const crypto = require("crypto");
 const { app } = require("@azure/functions");
 const accounts = require("../lib/accounts");
 const tracker = require("../lib/tracker");
 const store = require("../lib/store");
 
-// Admin API behind ADMIN_KEY, sent as the x-admin-key header.
+// Admin API. It has no authentication: anyone who can reach the site can use it.
 // Routes can't start with "admin" (Azure Functions reserves it), so the API lives under /api/manage.
 const reply = (status, body) => ({ status, jsonBody: body, headers: { "Cache-Control": "no-store" } });
-const digest = (s) => crypto.createHash("sha256").update(String(s)).digest();
-
-function authorize(request) {
-  const expected = process.env.ADMIN_KEY;
-  if (!expected || expected.length < 12) {
-    return reply(503, { error: "The admin panel is off. Set ADMIN_KEY (at least 12 characters) in the app's environment variables." });
-  }
-  const given = request.headers.get("x-admin-key") || "";
-  if (!crypto.timingSafeEqual(digest(given), digest(expected))) return reply(401, { error: "Wrong admin key." });
-  return null;
-}
 
 function fail(context, err) {
   if (err instanceof accounts.InputError) return reply(err.status, { error: err.message });
@@ -30,8 +18,6 @@ app.http("manageAccounts", {
   methods: ["GET", "POST", "DELETE"],
   authLevel: "anonymous",
   handler: async (request, context) => {
-    const denied = authorize(request);
-    if (denied) return denied;
     const log = (e) => context.warn(e);
 
     try {
@@ -85,8 +71,6 @@ app.http("refresh", {
   methods: ["POST"],
   authLevel: "anonymous",
   handler: async (request, context) => {
-    const denied = authorize(request);
-    if (denied) return denied;
     const log = (e) => context.warn(e);
     if (!process.env.HENRIK_API_KEY) return reply(500, { error: "HENRIK_API_KEY isn't set." });
 
